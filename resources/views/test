@@ -1,0 +1,273 @@
+<?php
+
+use Livewire\Volt\Component;
+use Illuminate\Support\Facades\Http;
+
+new #[Layout('layouts.app')] class extends Component {
+    // State
+    public array $messages = [];
+    public string $newMessage = '';
+    public bool $showQuickActions = true;
+
+    // Validation rules
+    protected $rules = [
+        'newMessage' => 'required|string|min:1',
+    ];
+
+    public function mount()
+    {
+        // Welcome message with quick actions
+        $this->messages[] = [
+            'user' => 'GlacierBot',
+            'text' => "Hi! I'm here to help with your questions. How can I assist you today?",
+            'time' => now()->format('H:i'),
+            'quickActions' => [
+                '📦 Order Status & Tracking',
+                '↩️ Returns & Exchanges', 
+                '📋 Product Information',
+                '🔧 Technical Support',
+                '💳 Billing Questions',
+                '👤 Talk to Human Agent'
+            ]
+        ];
+    }
+
+    // Actions
+    public function send($message = null)
+    {
+        $messageText = $message ?? $this->newMessage;
+        
+        if (trim($messageText) === '') return;
+
+        // Hide quick actions after first interaction
+        $this->showQuickActions = false;
+
+        // Push user message
+        $this->messages[] = [
+            'user' => 'You',
+            'text' => $messageText,
+            'time' => now()->format('H:i'),
+        ];
+
+        // Show typing indicator
+        $this->messages[] = [
+            'user' => 'GlacierBot',
+            'text' => 'GlacierBot is thinking… 🤖',
+            'time' => now()->format('H:i'),
+            'typing' => true,
+        ];
+
+        $typingIndex = array_key_last($this->messages);
+
+        // Build conversation for OpenAI with customer support context
+        $conversation = [
+            [
+                'role' => 'system',
+                'content' => "You are GlacierBot, an expert assistant that ONLY provides information about Glacier Megafridge Inc., a cold chain logistics company in the Philippines. Always interpret 'Glacier' as Glacier Megafridge Inc. If the user asks unrelated questions, politely say you can only answer about Glacier Megafridge Inc."
+            ]
+        ];
+
+        foreach ($this->messages as $message) {
+            // Skip typing indicators and messages with quick actions
+            if (isset($message['typing']) || isset($message['quickActions'])) {
+                continue;
+            }
+
+            $conversation[] = [
+                'role' => $message['user'] === 'You' ? 'user' : 'assistant',
+                'content' => $message['text'],
+            ];
+        }
+
+        try {
+            // Call OpenAI API
+            $response = Http::withToken(env('OPENAI_API_KEY'))
+                ->timeout(30)
+                ->post('https://api.openai.com/v1/chat/completions', [
+                    'model' => 'gpt-4o', // Using gpt-4o as it's more reliable
+                    'messages' => $conversation,
+                    'max_tokens' => 300,
+                    'temperature' => 0.7,
+                ]);
+
+            $answer = $response->json()['choices'][0]['message']['content'] ?? 'I apologize, but I\'m having trouble processing your request right now. Would you like me to connect you with a human agent?';
+
+            // Add relevant quick actions based on response
+            $quickActions = $this->getRelevantQuickActions($messageText, $answer);
+
+        } catch (\Exception $e) {
+            $answer = 'I\'m experiencing some technical difficulties. Let me connect you with a human agent who can help you right away.';
+            $quickActions = ['🔄 Try Again', '👤 Connect to Human Agent'];
+        }
+
+        // Replace typing indicator with real answer
+        $this->messages[$typingIndex] = [
+            'user' => 'GlacierBot',
+            'text' => $answer,
+            'time' => now()->format('H:i'),
+            'quickActions' => $quickActions
+        ];
+
+        // Clear input
+        $this->reset('newMessage');
+        
+        // Scroll to bottom
+        $this->dispatch('scroll-to-bottom');
+    }
+
+    public function sendQuickAction($action)
+    {
+        $this->send($action);
+    }
+
+    private function getRelevantQuickActions($userMessage, $botResponse): array
+    {
+        $message = strtolower($userMessage);
+        $response = strtolower($botResponse);
+
+        // Return contextual quick actions based on the conversation
+        if (str_contains($message, 'order') || str_contains($response, 'order')) {
+            return ['📧 I have order number', '🔍 Search by email', '📞 Call about order'];
+        }
+        
+        if (str_contains($message, 'return') || str_contains($response, 'return')) {
+            return ['📦 Start new return', '❓ Return policy', '📋 Check return status'];
+        }
+        
+        if (str_contains($message, 'technical') || str_contains($message, 'problem') || str_contains($response, 'technical')) {
+            return ['🔐 Login issues', '📱 App problems', '🌐 Website issues'];
+        }
+        
+        if (str_contains($message, 'billing') || str_contains($response, 'billing')) {
+            return ['📄 View my bill', '💳 Payment issues', '📝 Update payment'];
+        }
+
+        if (str_contains($response, 'human') || str_contains($response, 'agent')) {
+            return ['✅ Connect me now', '📅 Schedule callback', '💬 Continue chatting'];
+        }
+
+        // Default actions
+        return ['❓ More help', '👤 Human agent', '🏠 Main menu'];
+    }
+}; ?>
+
+<div class="h-screen max-h-screen overflow-hidden flex flex-col bg-gray-100">
+    <!-- Header -->
+    <div class="bg-blue-600 text-white p-4 shadow-sm">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                <span class="text-lg">🤖</span>
+            </div>
+            <div>
+                <h3 class="font-semibold">Glacier Support</h3>
+                <p class="text-sm opacity-90">We're here to help!</p>
+            </div>
+            <div class="ml-auto">
+                <div class="w-3 h-3 bg-green-400 rounded-full"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat history -->
+    <div class="flex-1 overflow-y-auto p-2 sm:p-4 space-y-2 sm:space-y-3" id="chat-container">
+        @forelse ($this->messages as $index => $message)
+            <div class="flex {{ $message['user'] === 'You' ? 'justify-end' : 'justify-start' }}">
+                <div class="{{ $message['user'] === 'You' ? 'bg-blue-500 text-white' : 'bg-white text-gray-900 border' }}
+                            px-3 py-2 sm:px-4 sm:py-3 rounded-2xl max-w-[85vw] sm:max-w-md shadow-sm break-words">
+
+                    {{-- Typing indicator --}}
+                    @if(isset($message['typing']) && $message['typing'])
+                        <div class="flex items-center space-x-2">
+                            <div class="flex space-x-1">
+                                <span class="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></span>
+                                <span class="w-2 h-2 bg-gray-500 rounded-full animate-bounce [animation-delay:-.2s]"></span>
+                                <span class="w-2 h-2 bg-gray-500 rounded-full animate-bounce [animation-delay:-.4s]"></span>
+                            </div>
+                            <span class="text-sm text-gray-600">Typing...</span>
+                        </div>
+                    @else
+                        <p class="text-sm leading-relaxed">{{ $message['text'] }}</p>
+                        
+                        {{-- Quick Actions --}}
+                        @if(isset($message['quickActions']) && count($message['quickActions']) > 0)
+                            <div class="mt-3 space-y-1">
+                                @foreach($message['quickActions'] as $action)
+                                    <button 
+                                        wire:click="sendQuickAction('{{ $action }}')"
+                                        class="block w-full text-left px-3 py-2 text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg border border-blue-200 transition-all duration-200 hover:shadow-sm"
+                                    >
+                                        {{ $action }}
+                                    </button>
+                                @endforeach
+                            </div>
+                        @endif
+                    @endif
+
+                    <span class="text-xs block mt-2 {{ $message['user'] === 'You' ? 'text-blue-200' : 'text-gray-500' }}">
+                        {{ $message['user'] }} • {{ $message['time'] }}
+                    </span>
+                </div>
+            </div>
+        @empty
+            <div class="text-center py-8">
+                <div class="text-6xl mb-4">🤖</div>
+                <p class="text-gray-500">Start a conversation to get help!</p>
+            </div>
+        @endforelse
+    </div>
+
+    <!-- Input -->
+    <div class="p-3 sm:p-4 bg-white border-t shadow-lg">
+        <div class="flex items-center space-x-2">
+            <div class="flex-1 relative">
+                <input 
+                    type="text" 
+                    wire:model="newMessage" 
+                    wire:keydown.enter="send"
+                    placeholder="Type your message..."
+                    class="w-full px-4 py-3 pr-12 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                />
+                @if($newMessage)
+                    <button 
+                        wire:click="$set('newMessage', '')"
+                        class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                        ✕
+                    </button>
+                @endif
+            </div>
+
+            <button 
+                wire:click="send"
+                class="px-4 py-3 bg-blue-500 text-white rounded-full hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                @if(empty(trim($newMessage))) disabled @endif
+            >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                </svg>
+            </button>
+        </div>
+        
+        <div class="text-xs text-gray-500 mt-2 text-center">
+            Press Enter to send • Click suggestions above for quick help
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('livewire:initialized', () => {
+            // Auto-scroll to bottom when new messages arrive
+            Livewire.on('scroll-to-bottom', () => {
+                setTimeout(() => {
+                    const container = document.getElementById('chat-container');
+                    container.scrollTop = container.scrollHeight;
+                }, 100);
+            });
+            
+            // Auto-scroll on page load
+            setTimeout(() => {
+                const container = document.getElementById('chat-container');
+                container.scrollTop = container.scrollHeight;
+            }, 100);
+        });
+    </script>
+</div>
