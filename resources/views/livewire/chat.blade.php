@@ -56,8 +56,8 @@ new #[Layout('layouts.app')] class extends Component {
     {
         // Show typing indicator
         $this->messages[] = [
-            'user' => 'GlacierBot',
-            'text' => 'GlacierBot is thinking… ❄️',
+            'user' => 'GAB',
+            'text' => 'GAB is thinking… ❄️',
             'time' => now()->format('H:i'),
             'typing' => true,
         ];
@@ -76,7 +76,7 @@ new #[Layout('layouts.app')] class extends Component {
             // $prompts = [
             //     ['role' => 'system', 'content' => config('glacierbot.system_prompt')],
             // ];
-
+            
             // foreach ($this->messages as $message) {
             //     if (isset($message['typing']) && $message['typing']) {
             //         continue; // Skip typing indicators
@@ -97,7 +97,7 @@ new #[Layout('layouts.app')] class extends Component {
             //         'max_completion_tokens' => 500,
             //         'temperature' => 0.2,
             //     ])->json();
-
+            
             // $answer = $response['choices'][0]['message']['content'] 
             //     ?? 'I apologize, but I\'m experiencing some technical difficulties. Please try again in a moment.';
 
@@ -147,7 +147,7 @@ new #[Layout('layouts.app')] class extends Component {
 
         // Replace typing indicator with actual response
         $this->messages[$typingIndex] = [
-            'user' => 'GlacierBot',
+            'user' => 'GAB',
             'text' => $answer,
             'time' => now()->format('H:i'),
         ];
@@ -158,7 +158,8 @@ new #[Layout('layouts.app')] class extends Component {
 
         // Save messages to session
         session(['chat_messages' => $this->messages]);
-
+        // Dispatch event to speak
+        // $this->dispatch('speak-message', text: $answer);
         // Scroll to bottom after response
         $this->dispatch('scroll-to-bottom');
     }
@@ -199,7 +200,7 @@ new #[Layout('layouts.app')] class extends Component {
                     <span class="text-sm">❄️</span>
                 </div>
                 <div>
-                    <h3 class="font-medium text-gray-100">GlacierBot</h3>
+                    <h3 class="font-medium text-gray-100">GAB</h3>
                     <p class="text-xs text-gray-400">
                         @if($isSubmitted)
                             <span class="flex items-center">
@@ -498,7 +499,7 @@ new #[Layout('layouts.app')] class extends Component {
                 recognition.onend = function() {
                     clearTimeout(recognitionTimeout);
                     console.log('Speech recognition ended');
-                    
+                    @this.send();
                     // Only call handleVoiceError if we're still supposed to be listening
                     // This prevents double-calls when manually stopped
                     if (@this.isListening) {
@@ -648,6 +649,53 @@ new #[Layout('layouts.app')] class extends Component {
                     @this.call('toggleVoice');
                 }
             });
+
+
+            Livewire.on('speak-message', (event) => {
+                speakText(event.text);
+            });
+
+
+            function speakText(text) {
+                if (!('speechSynthesis' in window)) {
+                    console.warn("Speech synthesis not supported in this browser.");
+                    return;
+                }
+
+                // Stop any ongoing speech before starting new
+                speechSynthesis.cancel();
+
+                // Split text into sentences (keeps punctuation)
+                const sentences = text.split(/([.!?])/).reduce((acc, cur, i, arr) => {
+                    if (/[.!?]/.test(cur) && acc.length) {
+                        acc[acc.length - 1] += cur; // attach punctuation
+                    } else if (cur.trim()) {
+                        acc.push(cur.trim());
+                    }
+                    return acc;
+                }, []);
+
+                const voices = speechSynthesis.getVoices();
+
+                sentences.forEach(sentence => {
+                    const utterance = new SpeechSynthesisUtterance(sentence);
+
+                    // 🔹 Simple detection: English if mostly ASCII, Tagalog otherwise
+                    const isEnglish = /^[A-Za-z0-9\s.,!?'"-]+$/.test(sentence);
+                    utterance.lang = isEnglish ? "en-US" : "tl-PH";
+
+                    // Pick a voice if available
+                    const voice = voices.find(v => v.lang === utterance.lang);
+                    if (voice) utterance.voice = voice;
+
+                    // Customize tone
+                    utterance.rate = 1;   // 1 = normal speed
+                    utterance.pitch = 1;  // 1 = normal pitch
+                    utterance.volume = 1; // 1 = full volume
+
+                    speechSynthesis.speak(utterance);
+                });
+            }
         });
     </script>
 </div>
