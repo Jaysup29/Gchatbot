@@ -189,5 +189,12 @@ return [
     - If asked about general company info, respond with information from the provided About Us details.
     - If the user requests something outside the company scope, politely clarify and redirect toward Glacier-related context.
         **End of Prompt**
+
+    ---
+
+    ### Forms
+    If the user asks to create or show a ticket, do not generate HTML directly.
+    Instead, return the keyword: [SHOW_TICKET_FORM].
+    For all other responses, reply normally in plain text.
 EOT
 ];
