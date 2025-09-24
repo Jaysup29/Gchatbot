@@ -385,7 +385,7 @@ new #[Layout('layouts.app')] class extends Component {
     <!-- Enhanced Input Area - Fully Responsive -->
     <div class="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 safe-area-padding-bottom">
         <div class="max-w-4xl mx-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
-            <div class="flex items-end space-x-2 sm:space-x-3">
+            <div class="flex items-center space-x-2 sm:space-x-3">
                 <!-- Add button (hidden on very small screens) -->
                 <button class="hidden md:flex w-10 h-10 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full flex-shrink-0 items-center justify-center transition-colors group">
                     <svg class="w-4 h-4 lg:w-5 lg:h-5 text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
