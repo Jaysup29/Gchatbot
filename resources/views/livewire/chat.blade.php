@@ -232,7 +232,6 @@ new #[Layout('layouts.app')] class extends Component {
 }; ?>
 
 <div class="h-screen max-h-screen overflow-hidden flex flex-col bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-200">
-    
     <!-- Enhanced Header - Fully Responsive -->
     <div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
         <div class="max-w-6xl mx-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
