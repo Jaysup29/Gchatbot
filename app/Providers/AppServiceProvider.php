@@ -6,6 +6,7 @@ use App\Services\FaqService;
 use App\Services\OpenAIService;
 use App\Services\PromptService;
 use App\Services\ChatSessionService;
+use App\Services\AdvancedPromptService;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -29,6 +30,10 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(OpenAIService::class, function ($app) {
             return new OpenAIService();
+        });
+
+        $this->app->singleton(AdvancedPromptService::class, function ($app) {
+            return new AdvancedPromptService();
         });
     }
 

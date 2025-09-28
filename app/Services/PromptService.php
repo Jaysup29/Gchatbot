@@ -36,26 +36,55 @@ class PromptService
 
     private function calculateMatchScore(string $userInput, string $triggerPhrase): int
     {
+        // Handle empty or whitespace-only input
+        $input = strtolower(trim($userInput));
+        if (empty($input)) {
+            return 0;
+        }
+        
+        // Handle empty trigger phrase
+        $triggerPhrase = trim($triggerPhrase);
+        if (empty($triggerPhrase)) {
+            return 0;
+        }
+        
         $score = 0;
-        $input = strtolower($userInput);
         $triggers = array_map('trim', explode(',', strtolower($triggerPhrase)));
         
         foreach ($triggers as $trigger) {
+            // Skip empty triggers
+            if (empty($trigger)) {
+                continue;
+            }
+            
+            // Exact phrase match (10 points)
             if (str_contains($input, $trigger)) {
                 $score += 10;
             }
             
-            $triggerWords = explode(' ', $trigger);
-            $inputWords = explode(' ', $input);
+            // Word-by-word matching
+            $triggerWords = array_filter(explode(' ', $trigger), function($word) {
+                return strlen(trim($word)) > 2; // Only process words longer than 2 characters
+            });
+            
+            $inputWords = array_filter(explode(' ', $input), function($word) {
+                return strlen(trim($word)) > 2; // Only process words longer than 2 characters
+            });
             
             foreach ($triggerWords as $triggerWord) {
-                if (strlen($triggerWord) > 2) {
-                    foreach ($inputWords as $inputWord) {
-                        if ($triggerWord === $inputWord) {
-                            $score += 3;
-                        } elseif (str_contains($triggerWord, $inputWord) || str_contains($inputWord, $triggerWord)) {
-                            $score += 1;
-                        }
+                $triggerWord = trim($triggerWord);
+                if (empty($triggerWord)) continue;
+                
+                foreach ($inputWords as $inputWord) {
+                    $inputWord = trim($inputWord);
+                    if (empty($inputWord)) continue;
+                    
+                    if ($triggerWord === $inputWord) {
+                        // Exact word match (3 points)
+                        $score += 3;
+                    } elseif (str_contains($triggerWord, $inputWord) || str_contains($inputWord, $triggerWord)) {
+                        // Partial word match (1 point)
+                        $score += 1;
                     }
                 }
             }

@@ -66,6 +66,7 @@ class Prompt extends Model
         return static::active()
             ->where(function ($query) use ($userInput) {
                 $query->where('trigger_phrase', 'LIKE', "%{$userInput}%")
+                      ->orWhere('prompt_content', 'LIKE', "%{$userInput}%")
                       ->orWhereRaw('MATCH(trigger_phrase, prompt_content) AGAINST(? IN BOOLEAN MODE)', [$userInput]);
             })
             ->byPriority()
